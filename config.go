@@ -80,10 +80,10 @@ func readConfigFromEnv(fileName string) (Config, error) {
 }
 
 func (c *Config) PrintConfig() {
-	slog.Info("SEQUENCER_URL:", c.sequencerUrl)
-	slog.Info("SEARCHER_PRIVATE_KEY:", c.searcherPrivateKey)
-	slog.Info("ETH_RPC_URL:", c.ethRpcUrl)
-	slog.Info("SEARCHER_TASKS_TO_SPIN_UP:", c.searcherTasksToSpinUp)
-	slog.Info("ROLLUP_NAME:", c.rollupName)
-	slog.Info("LATENCY_MARGIN:", c.latencyMargin)
+	slog.Info("Sequencer url is:", "sequencer_url", c.sequencerUrl)
+	slog.Info("Searcher private key is:", "searcher_private_key", c.searcherPrivateKey)
+	slog.Info("Eth rpc url is:", "eth_rpc_url", c.ethRpcUrl)
+	slog.Info("Number of searcher tasks to spin up is:", "searcher_tasks_to_spin_up", c.searcherTasksToSpinUp)
+	slog.Info("Rollup name is:", "rollup_name", c.rollupName)
+	slog.Info("Latency margin is:", "latency_margin", c.latencyMargin)
 }

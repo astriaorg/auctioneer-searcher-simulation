@@ -8,16 +8,9 @@ import (
 	"github.com/google/uuid"
 	"io"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
-)
-
-var (
-	// TODO - fetch this from a .env file
-	SEQUENCER_URL             = "127.0.0.1:49171"
-	SEARCHER_PRIVATE_KEY      = "528a032646bf3498e48994778a0c1f9a535541142a6356808c9234dd3614882e"
-	ETH_RPC_URL               = "http://executor.astria.localdev.me"
-	SEARCHER_TASKS_TO_SPIN_UP = 5
 )
 
 type optimisticBlockData struct {
@@ -27,6 +20,9 @@ type optimisticBlockData struct {
 
 // TODO - supporting having multiple searcher instances
 func main() {
+	detailedLogHandler := NewDetailedLogHandler(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+	slog.SetDefault(slog.New(&detailedLogHandler))
+
 	config, err := readConfigFromEnv(".env.local")
 	if err != nil {
 		slog.Error("can not read config from env %v", err)
@@ -68,7 +64,6 @@ func main() {
 		slog.Error("can not get chain id %v", err)
 		return
 	}
-	slog.Info("chain id is %v", chainId)
 
 	done := make(chan bool)
 
@@ -175,7 +170,7 @@ loop:
 			// send every 4th block. We can avoid this by maintaining multiple searcher instances
 			if blockCounter%4 == 0 {
 				// the auction starts, trigger the searcher task
-				slog.Info("Received Optimistic Block: %v", optimisticBlock)
+				slog.Info("Received Optimistic Block", "block_number", optimisticBlock.blockNumber)
 				optimisticBlockInfo.SetBlockNumber(optimisticBlock.blockNumber)
 				optimisticBlockInfo.SetBlockHash(optimisticBlock.blockHash)
 
