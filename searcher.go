@@ -58,12 +58,10 @@ func NewSearcher(privateKeyHex string, chainId *big.Int, ethClient *ethclient.Cl
 	return s, nil
 }
 
-var LATENCY_MARGIN = 50 // in ms
-
 func (s *Searcher) FetchLatestNonce(nonceCh chan uint64) error {
 	nonce, err := s.client.PendingNonceAt(context.Background(), crypto.PubkeyToAddress(s.privateKey.PublicKey))
 	if err != nil {
-		slog.Error("can not fetch latest nonce %v", err)
+		slog.Error("can not fetch latest nonce", "err", err)
 		return err
 	}
 	nonceCh <- nonce
@@ -75,7 +73,7 @@ func (s *Searcher) FetchLatestNonce(nonceCh chan uint64) error {
 // and then submit the block to the sequencer. If in case before the sleepDelay we listen to the block commitment
 // we reduce our sleep time by the latency margin to submit the tx on time to the auctioneer.
 // TODO - add searcher task cancellation via a context.CancelFunc
-func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockCommitmentCh chan optimisticBlockData, optimisticBlockInfo *OptimisticBlockInfo, searcherResultChan chan SearcherResult, wg *sync.WaitGroup) {
+func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockCommitmentCh chan optimisticBlockData, optimisticBlockInfo *OptimisticBlockInfo, searcherResultChan chan SearcherResult, latencyMargin uint64, wg *sync.WaitGroup) {
 	slog.Info("searcher task started", "uuid", uuid, "delay", sleepDelay.String())
 	defer wg.Done()
 
@@ -84,7 +82,7 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockC
 	go func() {
 		err := s.FetchLatestNonce(nonceCh)
 		if err != nil {
-			slog.Error("can not fetch latest nonce %v", err)
+			slog.Error("can not fetch latest nonce", "err", err)
 			return
 		}
 	}()
@@ -115,7 +113,7 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockC
 	}
 	if !searchingCompletedOnTime {
 		slog.Info("waiting for latency margin! proceeding to submit tx to auctioneer after latency margin")
-		time.Sleep(time.Duration(LATENCY_MARGIN) * time.Millisecond)
+		time.Sleep(time.Duration(latencyMargin) * time.Millisecond)
 	}
 
 	// wait for the latest nonce before proceeding to submitting the tx
@@ -137,7 +135,7 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockC
 		GasFeeCap: big.NewInt(5000000000),
 		Gas:       21000,
 		To:        &toAddress,
-		Value:     big.NewInt(100000000000000000),
+		Value:     big.NewInt(10000000000000000),
 	})
 	signedTx, err := types.SignTx(txToSend, types.LatestSignerForChainID(s.chainId), s.privateKey)
 	if err != nil {

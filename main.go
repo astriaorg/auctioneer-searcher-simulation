@@ -25,18 +25,25 @@ type optimisticBlockData struct {
 	blockNumber uint64
 }
 
-// TODO - group logs by attrs
 // TODO - supporting having multiple searcher instances
 func main() {
+	config, err := readConfigFromEnv(".env.local")
+	if err != nil {
+		slog.Error("can not read config from env %v", err)
+		return
+	}
+
+	config.PrintConfig()
+
 	slog.Info("creating sequencer client")
-	sequencerClient, err := sequencer_client.NewSequencerClient(SEQUENCER_URL)
+	sequencerClient, err := sequencer_client.NewSequencerClient(config.sequencerUrl)
 	if err != nil {
 		slog.Error("can not connect with server %v", err)
 		return
 	}
 
 	slog.Info("creating optimistic stream")
-	optimisticStreamingInfo := sequencer_client.NewOptimisticStreamConnectionInfo(sequencerClient, "rollupName")
+	optimisticStreamingInfo := sequencer_client.NewOptimisticStreamConnectionInfo(sequencerClient, config.rollupName)
 	optimisticStream, err := optimisticStreamingInfo.GetOptimisticStream()
 	if err != nil {
 		slog.Error("can not create optimistic stream %v", err)
@@ -51,7 +58,7 @@ func main() {
 		return
 	}
 
-	client, err := ethclient.Dial(ETH_RPC_URL)
+	client, err := ethclient.Dial(config.ethRpcUrl)
 	if err != nil {
 		slog.Error("can not connect to eth client %v", err)
 		return
@@ -65,7 +72,7 @@ func main() {
 
 	done := make(chan bool)
 
-	searcher, err := NewSearcher(SEARCHER_PRIVATE_KEY, chainId, client)
+	searcher, err := NewSearcher(config.searcherPrivateKey, chainId, client)
 	if err != nil {
 		slog.Error("can not create searcher %v", err)
 		return
@@ -132,7 +139,7 @@ func main() {
 			select {
 			case searcherResult := <-resultCh:
 				searcherResultStore.AddSearcherResult(searcherResult)
-				if searcherResultStore.SearcherResultCount() == uint64(SEARCHER_TASKS_TO_SPIN_UP) {
+				if searcherResultStore.SearcherResultCount() == config.searcherTasksToSpinUp {
 					resCh <- true
 					slog.Info("All searcher task results have been collected!")
 				}
@@ -160,7 +167,7 @@ loop:
 	for {
 		select {
 		case optimisticBlock := <-optimisticBlockChannel:
-			if searcherTasksSpawned >= SEARCHER_TASKS_TO_SPIN_UP {
+			if uint64(searcherTasksSpawned) >= config.searcherTasksToSpinUp {
 				slog.Info("All searcher tasks are spawned, breaking out of the loop!")
 				break loop
 			}
@@ -179,7 +186,7 @@ loop:
 					panic(fmt.Sprintf("can not create uuid %v", err))
 				}
 				searcherTasksWaitGroup.Add(1)
-				go searcher.SearcherTask(searcherId, 200*time.Millisecond, blockCommitmentChannel, &optimisticBlockInfo, searcherResultChan, &searcherTasksWaitGroup)
+				go searcher.SearcherTask(searcherId, 200*time.Millisecond, blockCommitmentChannel, &optimisticBlockInfo, searcherResultChan, config.latencyMargin, &searcherTasksWaitGroup)
 			}
 			blockCounter += 1
 		case <-blockCommitmentChannel:
