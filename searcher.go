@@ -40,7 +40,7 @@ type Searcher struct {
 }
 
 func NewSearcher(privateKeyHex string, chainId *big.Int, ethClient *ethclient.Client) (*Searcher, error) {
-	privateKey, err := crypto.HexToECDSA(privateKeyHex)
+	privateKey, err := crypto.HexToECDSA("528a032646bf3498e48994778a0c1f9a535541142a6356808c9234dd3614882e")
 	if err != nil {
 		slog.Error("can not create private key %v", err)
 		return nil, err

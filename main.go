@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/uuid"
+	"github.com/lmittmann/tint"
 	"io"
 	"log/slog"
 	"os"
@@ -20,7 +21,7 @@ type optimisticBlockData struct {
 
 // TODO - supporting having multiple searcher instances
 func main() {
-	detailedLogHandler := NewDetailedLogHandler(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
+	detailedLogHandler := NewDetailedLogHandler(tint.NewHandler(os.Stdout, &tint.Options{}))
 	slog.SetDefault(slog.New(&detailedLogHandler))
 
 	config, err := readConfigFromEnv(".env.local")
