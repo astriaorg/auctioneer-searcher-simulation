@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"fmt"
@@ -40,7 +39,7 @@ type Searcher struct {
 }
 
 func NewSearcher(privateKeyHex string, chainId *big.Int, ethClient *ethclient.Client) (*Searcher, error) {
-	privateKey, err := crypto.HexToECDSA("528a032646bf3498e48994778a0c1f9a535541142a6356808c9234dd3614882e")
+	privateKey, err := crypto.HexToECDSA(privateKeyHex)
 	if err != nil {
 		slog.Error("can not create private key %v", err)
 		return nil, err
@@ -73,9 +72,29 @@ func (s *Searcher) FetchLatestNonce(nonceCh chan uint64) error {
 // and then submit the block to the sequencer. If in case before the sleepDelay we listen to the block commitment
 // we reduce our sleep time by the latency margin to submit the tx on time to the auctioneer.
 // TODO - add searcher task cancellation via a context.CancelFunc
-func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockCommitmentCh chan optimisticBlockData, optimisticBlockInfo *OptimisticBlockInfo, searcherResultChan chan SearcherResult, latencyMargin uint64, wg *sync.WaitGroup) {
+func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockCommitmentCh chan optimisticBlockData, optimisticBlockInfo *OptimisticBlockInfo, searcherResultChan chan SearcherResult, wg *sync.WaitGroup) {
 	slog.Info("searcher task started", "uuid", uuid, "delay", sleepDelay.String())
-	defer wg.Done()
+	defer func() {
+		_, ok := <-blockCommitmentCh
+		if !ok {
+			slog.Info("block commitment already drained")
+		} else {
+			slog.Info("drained block commitment")
+		}
+		wg.Done()
+	}()
+
+	validateBlockCommitment := func(blockCommitment *optimisticBlockData) error {
+		if blockCommitment.blockNumber != optimisticBlockInfo.getBlockNumber() {
+			// we are not interested in this block commitment
+			return fmt.Errorf("block commitment number %v does not match with the optimistic block number %v", blockCommitment.blockNumber, optimisticBlockInfo.getBlockNumber())
+		}
+		//if bytes.Equal(blockCommitment.blockHash, optimisticBlockInfo.getBlockHash()) {
+		//	// we are not interested in this block commitment
+		//	return fmt.Errorf("block commitment hash %v does not match with the optimistic block hash %v", blockCommitment.blockHash, optimisticBlockInfo.getBlockHash())
+		//}
+		return nil
+	}
 
 	timer := time.NewTimer(sleepDelay)
 	nonceCh := make(chan uint64)
@@ -87,33 +106,25 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockC
 		}
 	}()
 
-	searchingCompletedOnTime := false
 	select {
 	case <-timer.C:
 		slog.Info("searching completed on time! Now proceeding to submit tx to auctioneer")
 		// we finished the work on time
 		// exit and submit tx to auctioneer
-		searchingCompletedOnTime = true
 	case blockCommitment := <-blockCommitmentCh:
-		slog.Info("block commitment received! Now proceeding to submit tx to auctioneer after latency margin")
+		slog.Info("block commitment received! Now proceeding to submit tx to auctioneer after latency margin", "block_number", blockCommitment.blockNumber)
 		// now we sleep only for latency margin
 		// and submit tx to auctioneer
-		if blockCommitment.blockNumber != optimisticBlockInfo.getBlockNumber() {
-			slog.Error("block commitment number does not match with the optimistic block number", "block commitment number", blockCommitment.blockNumber, "optimistic block number", optimisticBlockInfo.getBlockNumber())
-			// we are not interested in this block commitment
-			searcherResultChan <- NewSearcherResult(uuid, nil, fmt.Errorf("block commitment number %v does not match with the optimistic block number %v", blockCommitment.blockNumber, optimisticBlockInfo.getBlockNumber()))
+
+		// close the block commitment ch since we have finished reading from it
+		close(blockCommitmentCh)
+
+		err := validateBlockCommitment(&blockCommitment)
+		if err != nil {
+			slog.Error("failed block commitment validation", "err", err)
+			searcherResultChan <- NewSearcherResult(uuid, nil, err)
 			return
 		}
-		if bytes.Equal(blockCommitment.blockHash, optimisticBlockInfo.getBlockHash()) {
-			slog.Error("block commitment hash does not match with the optimistic block hash", "block commitment hash", blockCommitment.blockHash, "optimistic block hash", optimisticBlockInfo.getBlockHash())
-			// we are not interested in this block commitment
-			searcherResultChan <- NewSearcherResult(uuid, nil, fmt.Errorf("block commitment hash %v does not match with the optimistic block hash %v", blockCommitment.blockHash, optimisticBlockInfo.getBlockHash()))
-			return
-		}
-	}
-	if !searchingCompletedOnTime {
-		slog.Info("waiting for latency margin! proceeding to submit tx to auctioneer after latency margin")
-		time.Sleep(time.Duration(latencyMargin) * time.Millisecond)
 	}
 
 	// wait for the latest nonce before proceeding to submitting the tx
@@ -210,9 +221,8 @@ func (s *SearcherResultStore) PrintSearcherResults() {
 	}
 
 	for k, v := range s.searcherResultMap {
-		slog.Info("searcher result", "uuid", k)
 		if v.err != nil {
-			slog.Error("searcher result error", "err", v.err)
+			slog.Error("searcher result error", "uuid", k, "err", v.err)
 			continue
 		}
 

@@ -14,7 +14,6 @@ type Config struct {
 	ethRpcUrl             string
 	searcherTasksToSpinUp uint64
 	rollupName            string
-	latencyMargin         uint64
 }
 
 func readConfigFromEnv(fileName string) (Config, error) {
@@ -59,23 +58,11 @@ func readConfigFromEnv(fileName string) (Config, error) {
 		return Config{}, fmt.Errorf("ROLLUP_NAME is not set")
 	}
 
-	latencyMarginVar := os.Getenv("LATENCY_MARGIN")
-	if latencyMarginVar == "" {
-		slog.Error("LATENCY_MARGIN is not set")
-		return Config{}, fmt.Errorf("LATENCY_MARGIN is not set")
-	}
-	latencyMargin, err := strconv.ParseUint(latencyMarginVar, 10, 64)
-	if err != nil {
-		slog.Error("LATENCY_MARGIN is not a valid number", "err", err)
-		return Config{}, err
-	}
-
 	return Config{
 		sequencerUrl:          sequencerUrl,
 		searcherPrivateKey:    searcherPrivateKey,
 		ethRpcUrl:             ethRpcUrl,
 		searcherTasksToSpinUp: searcherTasksToSpinUp,
-		latencyMargin:         latencyMargin,
 	}, nil
 }
 
@@ -85,5 +72,4 @@ func (c *Config) PrintConfig() {
 	slog.Info("Eth rpc url is:", "eth_rpc_url", c.ethRpcUrl)
 	slog.Info("Number of searcher tasks to spin up is:", "searcher_tasks_to_spin_up", c.searcherTasksToSpinUp)
 	slog.Info("Rollup name is:", "rollup_name", c.rollupName)
-	slog.Info("Latency margin is:", "latency_margin", c.latencyMargin)
 }

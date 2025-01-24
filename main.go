@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -29,8 +30,6 @@ func main() {
 		slog.Error("can not read config from env %v", err)
 		return
 	}
-
-	config.PrintConfig()
 
 	slog.Info("creating sequencer client")
 	sequencerClient, err := sequencer_client.NewSequencerClient(config.sequencerUrl)
@@ -82,6 +81,7 @@ func main() {
 	optimisticBlockInfo := OptimisticBlockInfo{}
 	optimisticBlockChannel := make(chan optimisticBlockData)
 	blockCommitmentChannel := make(chan optimisticBlockData)
+	searcherBlockCommitmentChannelMap := map[uint64]chan optimisticBlockData{}
 
 	slog.Info("Starting optimistic block stream")
 	go func(optimisticBlockChannel chan optimisticBlockData) {
@@ -120,7 +120,6 @@ func main() {
 			}
 			block := resp.GetCommitment()
 
-			slog.Info("Received block commitment in go routine!")
 			opData := optimisticBlockData{
 				blockHash:   block.GetBlockHash(),
 				blockNumber: block.GetHeight(),
@@ -151,13 +150,18 @@ func main() {
 
 	searcherTasksSpawned := 0
 
-	// ignore the first block commitment
+	// ignore the first optimistic block and block commitment. this is a sync step so that we always start the loop with an optimistic block
 	select {
-	case <-blockCommitmentChannel:
-		slog.Info("Ignoring the first block commitment")
+	case optimisticBlock := <-optimisticBlockChannel:
+		slog.Info("Ignoring the first Optimistic Block", "block_number", optimisticBlock.blockNumber)
 	}
 
-	blockCounter := 0
+	select {
+	case blockCommitment := <-blockCommitmentChannel:
+		slog.Info("Ignoring the first block commitment", "block_number", blockCommitment.blockNumber)
+	}
+
+	blockCounter := atomic.Uint64{}
 
 loop:
 	for {
@@ -169,7 +173,7 @@ loop:
 			}
 
 			// send every 4th block. We can avoid this by maintaining multiple searcher instances
-			if blockCounter%4 == 0 {
+			if blockCounter.Load()%4 == 0 {
 				// the auction starts, trigger the searcher task
 				slog.Info("Received Optimistic Block", "block_number", optimisticBlock.blockNumber)
 				optimisticBlockInfo.SetBlockNumber(optimisticBlock.blockNumber)
@@ -182,12 +186,22 @@ loop:
 					panic(fmt.Sprintf("can not create uuid %v", err))
 				}
 				searcherTasksWaitGroup.Add(1)
-				go searcher.SearcherTask(searcherId, 200*time.Millisecond, blockCommitmentChannel, &optimisticBlockInfo, searcherResultChan, config.latencyMargin, &searcherTasksWaitGroup)
+
+				// create the block commitment channel
+				searcherBlockCommitmentCh := make(chan optimisticBlockData)
+				searcherBlockCommitmentChannelMap[optimisticBlock.blockNumber] = searcherBlockCommitmentCh
+
+				go searcher.SearcherTask(searcherId, 200*time.Millisecond, searcherBlockCommitmentCh, &optimisticBlockInfo, searcherResultChan, &searcherTasksWaitGroup)
 			}
-			blockCounter += 1
-		case <-blockCommitmentChannel:
-			// drain the block commitments received, otherwise the searcher channel will receive stale block commitments
-			slog.Info("Received block commitment in main routine!")
+			blockCounter.Add(1)
+		case blockCommitment := <-blockCommitmentChannel:
+			blockCommitmentCh, ok := searcherBlockCommitmentChannelMap[blockCommitment.blockNumber]
+			if ok {
+				slog.Info("Received corresponding block commitment", "block_number", blockCommitment.blockNumber)
+				blockCommitmentCh <- blockCommitment
+			} else {
+				slog.Info("Block commitment does not match with any optimistic block", "block_number", blockCommitment.blockNumber)
+			}
 		case <-done:
 			slog.Error("exiting due to an unexpected error!")
 			break loop
