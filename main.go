@@ -162,6 +162,8 @@ func main() {
 	}
 
 	blockCounter := atomic.Uint64{}
+	interval := 100
+	intervalDelta := 100
 
 loop:
 	for {
@@ -191,7 +193,9 @@ loop:
 				searcherBlockCommitmentCh := make(chan optimisticBlockData)
 				searcherBlockCommitmentChannelMap[optimisticBlock.blockNumber] = searcherBlockCommitmentCh
 
-				go searcher.SearcherTask(searcherId, 200*time.Millisecond, searcherBlockCommitmentCh, &optimisticBlockInfo, searcherResultChan, &searcherTasksWaitGroup)
+				go searcher.SearcherTask(searcherId, time.Duration(interval)*time.Millisecond, config.latencyMargin, searcherBlockCommitmentCh, &optimisticBlockInfo, searcherResultChan, &searcherTasksWaitGroup)
+				interval += intervalDelta
+
 			}
 			blockCounter.Add(1)
 		case blockCommitment := <-blockCommitmentChannel:
@@ -199,8 +203,6 @@ loop:
 			if ok {
 				slog.Info("Received corresponding block commitment", "block_number", blockCommitment.blockNumber)
 				blockCommitmentCh <- blockCommitment
-			} else {
-				slog.Info("Block commitment does not match with any optimistic block", "block_number", blockCommitment.blockNumber)
 			}
 		case <-done:
 			slog.Error("exiting due to an unexpected error!")

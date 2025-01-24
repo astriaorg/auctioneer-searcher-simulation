@@ -20,13 +20,15 @@ import (
 type SearcherResult struct {
 	uuid    uuid.UUID
 	Receipt *types.Receipt
+	latency time.Duration
 	err     error
 }
 
-func NewSearcherResult(uuid uuid.UUID, receipt *types.Receipt, err error) SearcherResult {
+func NewSearcherResult(uuid uuid.UUID, receipt *types.Receipt, latency time.Duration, err error) SearcherResult {
 	return SearcherResult{
 		uuid:    uuid,
 		Receipt: receipt,
+		latency: latency,
 		err:     err,
 	}
 }
@@ -72,15 +74,22 @@ func (s *Searcher) FetchLatestNonce(nonceCh chan uint64) error {
 // and then submit the block to the sequencer. If in case before the sleepDelay we listen to the block commitment
 // we reduce our sleep time by the latency margin to submit the tx on time to the auctioneer.
 // TODO - add searcher task cancellation via a context.CancelFunc
-func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockCommitmentCh chan optimisticBlockData, optimisticBlockInfo *OptimisticBlockInfo, searcherResultChan chan SearcherResult, wg *sync.WaitGroup) {
+func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, latencyMargin time.Duration, blockCommitmentCh chan optimisticBlockData, optimisticBlockInfo *OptimisticBlockInfo, searcherResultChan chan SearcherResult, wg *sync.WaitGroup) {
 	slog.Info("searcher task started", "uuid", uuid, "delay", sleepDelay.String())
 	defer func() {
-		_, ok := <-blockCommitmentCh
-		if !ok {
-			slog.Info("block commitment already drained")
-		} else {
-			slog.Info("drained block commitment")
+		timer := time.NewTimer(5 * time.Second)
+
+		select {
+		case <-timer.C:
+			slog.Info("block commitment not received in time")
+		case _, ok := <-blockCommitmentCh:
+			if !ok {
+				slog.Info("block commitment already drained")
+			} else {
+				slog.Info("drained block commitment")
+			}
 		}
+
 		wg.Done()
 	}()
 
@@ -89,10 +98,6 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockC
 			// we are not interested in this block commitment
 			return fmt.Errorf("block commitment number %v does not match with the optimistic block number %v", blockCommitment.blockNumber, optimisticBlockInfo.getBlockNumber())
 		}
-		//if bytes.Equal(blockCommitment.blockHash, optimisticBlockInfo.getBlockHash()) {
-		//	// we are not interested in this block commitment
-		//	return fmt.Errorf("block commitment hash %v does not match with the optimistic block hash %v", blockCommitment.blockHash, optimisticBlockInfo.getBlockHash())
-		//}
 		return nil
 	}
 
@@ -106,13 +111,14 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockC
 		}
 	}()
 
+	blockCommitmentReceived := false
 	select {
 	case <-timer.C:
 		slog.Info("searching completed on time! Now proceeding to submit tx to auctioneer")
 		// we finished the work on time
 		// exit and submit tx to auctioneer
 	case blockCommitment := <-blockCommitmentCh:
-		slog.Info("block commitment received! Now proceeding to submit tx to auctioneer after latency margin", "block_number", blockCommitment.blockNumber)
+		slog.Info("block commitment received! Stopping searching activity to submit!", "block_number", blockCommitment.blockNumber)
 		// now we sleep only for latency margin
 		// and submit tx to auctioneer
 
@@ -122,9 +128,18 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockC
 		err := validateBlockCommitment(&blockCommitment)
 		if err != nil {
 			slog.Error("failed block commitment validation", "err", err)
-			searcherResultChan <- NewSearcherResult(uuid, nil, err)
+			searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, err)
 			return
 		}
+
+		blockCommitmentReceived = true
+	}
+
+	if blockCommitmentReceived {
+		// we still can sleep for latency margin amount
+		// TODO - make this an env variable
+		slog.Info("Sleeping for latency margin time", "latency_margin", latencyMargin.String())
+		time.Sleep(latencyMargin)
 	}
 
 	// wait for the latest nonce before proceeding to submitting the tx
@@ -151,7 +166,7 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockC
 	signedTx, err := types.SignTx(txToSend, types.LatestSignerForChainID(s.chainId), s.privateKey)
 	if err != nil {
 		slog.Error("can not sign the tx", "err", err)
-		searcherResultChan <- NewSearcherResult(uuid, nil, fmt.Errorf("can not sign the tx %v", err))
+		searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, fmt.Errorf("can not sign the tx %v", err))
 		return
 	}
 
@@ -159,7 +174,7 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockC
 	err = s.client.SendTransaction(context.Background(), signedTx)
 	if err != nil {
 		slog.Error("can not send the tx", "err", err)
-		searcherResultChan <- NewSearcherResult(uuid, nil, fmt.Errorf("can not send the tx %v", err))
+		searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, fmt.Errorf("can not send the tx %v", err))
 		return
 	}
 
@@ -171,13 +186,12 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, blockC
 	receipt, err := bind.WaitMined(timeoutCtx, s.client, signedTx)
 	if err != nil {
 		slog.Error("can not wait for the tx to be mined", "err", err)
-		slog.Info("sending searcher result to searcher result chan!")
-		searcherResultChan <- NewSearcherResult(uuid, nil, fmt.Errorf("can not wait for the tx to be mined %v", err))
+		searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, fmt.Errorf("can not wait for the tx to be mined %v", err))
 		return
 	}
 	if receipt != nil {
 		slog.Info("tx mined successfully")
-		searcherResultChan <- NewSearcherResult(uuid, receipt, nil)
+		searcherResultChan <- NewSearcherResult(uuid, receipt, sleepDelay, nil)
 		return
 	}
 }
@@ -222,12 +236,12 @@ func (s *SearcherResultStore) PrintSearcherResults() {
 
 	for k, v := range s.searcherResultMap {
 		if v.err != nil {
-			slog.Error("searcher result error", "uuid", k, "err", v.err)
+			slog.Error("searcher result error", "uuid", k, "err", v.err, "latency", v.latency.String())
 			continue
 		}
 
 		if v.Receipt != nil {
-			slog.Info("searcher result", "uuid", k, "tx hash", v.Receipt.TxHash.String(), "block number", v.Receipt.BlockNumber.Uint64())
+			slog.Info("searcher result", "uuid", k, "tx hash", v.Receipt.TxHash.String(), "block number", v.Receipt.BlockNumber.Uint64(), "latency", v.latency.String())
 		}
 	}
 }
