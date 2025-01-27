@@ -19,6 +19,7 @@ type Config struct {
 	searchingTimeStart         time.Duration
 	searchingTimeIncreaseDelta time.Duration
 	searchingTimeEnd           time.Duration
+	resultFile                 string
 }
 
 func parseAndValidateSearchingTimes() (time.Duration, time.Duration, time.Duration, error) {
@@ -122,6 +123,16 @@ func readConfigFromEnv(fileName string) (Config, error) {
 		return Config{}, err
 	}
 
+	resultFile := os.Getenv("RESULT_FILE")
+	if resultFile == "" {
+		slog.Error("RESULT_FILE is not set")
+		return Config{}, fmt.Errorf("RESULT_FILE is not set")
+	}
+	if FileExists(resultFile) {
+		slog.Error("RESULT_FILE already exists")
+		return Config{}, fmt.Errorf("RESULT_FILE already exists")
+	}
+
 	return Config{
 		sequencerUrl:               sequencerUrl,
 		searcherPrivateKey:         searcherPrivateKey,
@@ -131,6 +142,7 @@ func readConfigFromEnv(fileName string) (Config, error) {
 		searchingTimeStart:         searchingTimeStart,
 		searchingTimeIncreaseDelta: searchingTimeIncreaseDelta,
 		searchingTimeEnd:           searchingTimeEnd,
+		resultFile:                 resultFile,
 	}, nil
 }
 
@@ -144,4 +156,5 @@ func (c *Config) PrintConfig() {
 	slog.Info("Searching time start is:", "searching_time_start", c.searchingTimeStart)
 	slog.Info("Searching time increase delta is:", "searching_time_increase_delta", c.searchingTimeIncreaseDelta)
 	slog.Info("Searching time end is:", "searching_time_end", c.searchingTimeEnd)
+	slog.Info("Result file is:", "result_file", c.resultFile)
 }

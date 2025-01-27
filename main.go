@@ -216,6 +216,9 @@ loop:
 
 				go searcher.SearcherTask(searcherId, interval, config.latencyMargin, searcherBlockCommitmentCh, &optimisticBlockInfo, searcherResultChan, &searcherTasksWaitGroup)
 				interval += intervalDelta
+				if interval > config.searchingTimeEnd {
+					interval = config.searchingTimeEnd
+				}
 			}
 			blockCounter.Add(1)
 		case blockCommitment := <-blockCommitmentChannel:
@@ -242,4 +245,9 @@ loop:
 	slog.Info("All searcher tasks are finished")
 
 	searcherResultStore.PrintSearcherResults()
+	err = searcherResultStore.WriteResultsToCsvFile(config.resultFile)
+	if err != nil {
+		slog.Error("can not write searcher results to csv file %v", err)
+		return
+	}
 }

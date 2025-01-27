@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/csv"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -12,24 +13,27 @@ import (
 	"github.com/google/uuid"
 	"log/slog"
 	"math/big"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
 type SearcherResult struct {
-	uuid    uuid.UUID
-	Receipt *types.Receipt
-	latency time.Duration
-	err     error
+	uuid          uuid.UUID
+	Receipt       *types.Receipt
+	latency       time.Duration
+	latencyMargin time.Duration
+	err           error
 }
 
-func NewSearcherResult(uuid uuid.UUID, receipt *types.Receipt, latency time.Duration, err error) SearcherResult {
+func NewSearcherResult(uuid uuid.UUID, receipt *types.Receipt, latency time.Duration, latencyMargin time.Duration, err error) SearcherResult {
 	return SearcherResult{
-		uuid:    uuid,
-		Receipt: receipt,
-		latency: latency,
-		err:     err,
+		uuid:          uuid,
+		Receipt:       receipt,
+		latency:       latency,
+		latencyMargin: latencyMargin,
+		err:           err,
 	}
 }
 
@@ -128,7 +132,7 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, latenc
 		err := validateBlockCommitment(&blockCommitment)
 		if err != nil {
 			slog.Error("failed block commitment validation", "err", err)
-			searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, err)
+			searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, latencyMargin, err)
 			return
 		}
 
@@ -166,7 +170,7 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, latenc
 	signedTx, err := types.SignTx(txToSend, types.LatestSignerForChainID(s.chainId), s.privateKey)
 	if err != nil {
 		slog.Error("can not sign the tx", "err", err)
-		searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, fmt.Errorf("can not sign the tx %v", err))
+		searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, latencyMargin, fmt.Errorf("can not sign the tx %v", err))
 		return
 	}
 
@@ -174,7 +178,7 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, latenc
 	err = s.client.SendTransaction(context.Background(), signedTx)
 	if err != nil {
 		slog.Error("can not send the tx", "err", err)
-		searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, fmt.Errorf("can not send the tx %v", err))
+		searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, latencyMargin, fmt.Errorf("can not send the tx %v", err))
 		return
 	}
 
@@ -186,12 +190,12 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, latenc
 	receipt, err := bind.WaitMined(timeoutCtx, s.client, signedTx)
 	if err != nil {
 		slog.Error("can not wait for the tx to be mined", "err", err)
-		searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, fmt.Errorf("can not wait for the tx to be mined %v", err))
+		searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, latencyMargin, fmt.Errorf("can not wait for the tx to be mined %v", err))
 		return
 	}
 	if receipt != nil {
 		slog.Info("tx mined successfully")
-		searcherResultChan <- NewSearcherResult(uuid, receipt, sleepDelay, nil)
+		searcherResultChan <- NewSearcherResult(uuid, receipt, sleepDelay, latencyMargin, nil)
 		return
 	}
 }
@@ -241,9 +245,56 @@ func (s *SearcherResultStore) PrintSearcherResults() {
 		}
 
 		if v.Receipt != nil {
-			slog.Info("searcher result", "uuid", k, "tx hash", v.Receipt.TxHash.String(), "block number", v.Receipt.BlockNumber.Uint64(), "latency", v.latency.String())
+			slog.Info("searcher result", "uuid", k, "tx hash", v.Receipt.TxHash.String(), "block number", v.Receipt.BlockNumber.Uint64(), "latency", v.latency.String(), "latency_margin", v.latencyMargin.String())
 		}
 	}
+}
+
+func (s *SearcherResultStore) WriteResultsToCsvFile(fileName string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if FileExists(fileName) {
+		return fmt.Errorf("file %v already exists", fileName)
+	}
+
+	file, err := os.Create(fileName)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// write headers
+	err = writer.Write([]string{"uuid", "success", "tx_hash", "block_number", "latency", "latency_margin"})
+	if err != nil {
+		slog.Error("can not write headers to csv file", "err", err)
+		return fmt.Errorf("can not write headers to csv file %v", err)
+	}
+
+	for k, v := range s.searcherResultMap {
+		success := "false"
+		txHash := ""
+		blockNumber := ""
+		if v.err == nil {
+			success = "true"
+			if v.Receipt != nil {
+				txHash = v.Receipt.TxHash.String()
+				blockNumber = fmt.Sprintf("%v", v.Receipt.BlockNumber.Uint64())
+			}
+		}
+
+		err = writer.Write([]string{k.String(), success, txHash, blockNumber, v.latency.String(), v.latencyMargin.String()})
+		if err != nil {
+			slog.Error("can not write row to csv file", "err", err)
+			return fmt.Errorf("can not write row to csv file %v", err)
+		}
+	}
+
+	return nil
+
 }
 
 func (s *SearcherResultStore) SearcherResultCount() uint64 {
