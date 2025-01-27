@@ -12,7 +12,6 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 type optimisticBlockData struct {
@@ -20,12 +19,34 @@ type optimisticBlockData struct {
 	blockNumber uint64
 }
 
+func getConfigFile() (string, error) {
+	env := os.Getenv("ENV")
+
+	if env == "" {
+		return ".env.dev", nil
+	}
+
+	if env != "mainnet" && env != "testnet" && env != "dev" {
+		return "", fmt.Errorf("invalid env")
+	}
+
+	return fmt.Sprintf(".env.%s", env), nil
+}
+
 // TODO - supporting having multiple searcher instances
 func main() {
 	detailedLogHandler := NewDetailedLogHandler(tint.NewHandler(os.Stdout, &tint.Options{}))
 	slog.SetDefault(slog.New(&detailedLogHandler))
 
-	config, err := readConfigFromEnv(".env.local")
+	configFile, err := getConfigFile()
+	if err != nil {
+		slog.Error("can not get config file %v", err)
+		return
+	}
+
+	slog.Info("config file", "file", configFile)
+
+	config, err := readConfigFromEnv(configFile)
 	if err != nil {
 		slog.Error("can not read config from env %v", err)
 		return
@@ -162,8 +183,8 @@ func main() {
 	}
 
 	blockCounter := atomic.Uint64{}
-	interval := 100
-	intervalDelta := 100
+	interval := config.searchingTimeStart
+	intervalDelta := config.searchingTimeIncreaseDelta
 
 loop:
 	for {
@@ -193,9 +214,8 @@ loop:
 				searcherBlockCommitmentCh := make(chan optimisticBlockData)
 				searcherBlockCommitmentChannelMap[optimisticBlock.blockNumber] = searcherBlockCommitmentCh
 
-				go searcher.SearcherTask(searcherId, time.Duration(interval)*time.Millisecond, config.latencyMargin, searcherBlockCommitmentCh, &optimisticBlockInfo, searcherResultChan, &searcherTasksWaitGroup)
+				go searcher.SearcherTask(searcherId, interval, config.latencyMargin, searcherBlockCommitmentCh, &optimisticBlockInfo, searcherResultChan, &searcherTasksWaitGroup)
 				interval += intervalDelta
-
 			}
 			blockCounter.Add(1)
 		case blockCommitment := <-blockCommitmentChannel:
