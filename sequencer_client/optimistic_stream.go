@@ -9,7 +9,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"google.golang.org/grpc"
-	"log"
 	"log/slog"
 )
 
@@ -52,7 +51,7 @@ func (o *OptimisticStreamConnectionInfo) GetOptimisticStream() (*OptimisticStrea
 		Height: 3000000,
 	})
 	if err != nil {
-		log.Fatalf("cannot query sequencer block %v", err)
+		slog.Error("cannot query sequencer block", "err", err)
 		return nil, err
 	}
 
@@ -61,7 +60,7 @@ func (o *OptimisticStreamConnectionInfo) GetOptimisticStream() (*OptimisticStrea
 	}
 	optimisticBlockStream, err := client.GetOptimisticBlockStream(context.Background(), optimisticBlockStreamReq)
 	if err != nil {
-		log.Fatalf("open stream error %v", err)
+		slog.Error("open stream error", "err", err)
 		return nil, err
 	}
 

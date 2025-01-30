@@ -40,7 +40,7 @@ func main() {
 
 	configFile, err := getConfigFile()
 	if err != nil {
-		slog.Error("can not get config file %v", err)
+		slog.Error("can not get config file", "err", err)
 		return
 	}
 
@@ -48,14 +48,14 @@ func main() {
 
 	config, err := readConfigFromEnv(configFile)
 	if err != nil {
-		slog.Error("can not read config from env %v", err)
+		slog.Error("can not read config from env", "err", err)
 		return
 	}
 
 	slog.Info("creating sequencer client")
 	sequencerClient, err := sequencer_client.NewSequencerClient(config.sequencerUrl)
 	if err != nil {
-		slog.Error("can not connect with server %v", err)
+		slog.Error("can not connect with server", "err", err)
 		return
 	}
 
@@ -63,7 +63,7 @@ func main() {
 	optimisticStreamingInfo := sequencer_client.NewOptimisticStreamConnectionInfo(sequencerClient, config.rollupName)
 	optimisticStream, err := optimisticStreamingInfo.GetOptimisticStream()
 	if err != nil {
-		slog.Error("can not create optimistic stream %v", err)
+		slog.Error("can not create optimistic stream", "err", err)
 		return
 	}
 
@@ -71,18 +71,18 @@ func main() {
 	blockCommitmentStreamInfo := sequencer_client.NewBlockCommitmentStreamConnectionInfo(sequencerClient)
 	blockCommitmentStream, err := blockCommitmentStreamInfo.GetBlockCommitmentStream()
 	if err != nil {
-		slog.Error("can not create block commitment stream %v", err)
+		slog.Error("can not create block commitment stream", "err", err)
 		return
 	}
 
 	client, err := ethclient.Dial(config.ethRpcUrl)
 	if err != nil {
-		slog.Error("can not connect to eth client %v", err)
+		slog.Error("can not connect to eth client", "err", err)
 		return
 	}
 	chainId, err := client.ChainID(context.Background())
 	if err != nil {
-		slog.Error("can not get chain id %v", err)
+		slog.Error("can not get chain id", "err", err)
 		return
 	}
 
@@ -90,7 +90,7 @@ func main() {
 
 	searcher, err := NewSearcher(config.searcherPrivateKey, chainId, client)
 	if err != nil {
-		slog.Error("can not create searcher %v", err)
+		slog.Error("can not create searcher", "err", err)
 		return
 	}
 
@@ -114,7 +114,7 @@ func main() {
 				return
 			}
 			if err != nil {
-				slog.Error("can not receive %v", err)
+				slog.Error("can not receive", "err", err)
 			}
 			block := resp.GetBlock()
 
@@ -137,7 +137,7 @@ func main() {
 				return
 			}
 			if err != nil {
-				slog.Error("can not receive %v", err)
+				slog.Error("can not receive", "err", err)
 			}
 			block := resp.GetCommitment()
 
@@ -247,7 +247,7 @@ loop:
 	searcherResultStore.PrintSearcherResults()
 	err = searcherResultStore.WriteResultsToCsvFile(config.resultFile)
 	if err != nil {
-		slog.Error("can not write searcher results to csv file %v", err)
+		slog.Error("can not write searcher results to csv file", "err", err)
 		return
 	}
 }

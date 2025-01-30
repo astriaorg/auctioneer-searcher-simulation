@@ -18,7 +18,7 @@ func NewSequencerClient(url string) (*SequencerClient, error) {
 
 	conn, err := grpc.NewClient(url, grpc.WithTransportCredentials(creds))
 	if err != nil {
-		slog.Error("can not connect with server %v", err)
+		slog.Error("can not connect with server", "err", err)
 		return nil, err
 	}
 	return &SequencerClient{
