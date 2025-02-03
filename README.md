@@ -54,7 +54,7 @@ SEARCHING_TIME_INCREASE_DELTA=0ms
 # SEARCHING_TIME_END is the searching time at which the last task will spend searching
 SEARCHING_TIME_END=1.2s
 # RESULT_FILE is the file in which the results of all the searchers will be written to. The results include the time taken to submit the bundle to the auctioneer, the tx hash is the tx has been submitted etc
-RESULT_FILE=results-ap-optimistic-mempool-testing-4.csv
+RESULT_FILE=testing.csv
 ```
 
 After that, build the binary:
