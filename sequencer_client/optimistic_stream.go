@@ -3,9 +3,7 @@ package sequencer_client
 import (
 	primitivev1 "buf.build/gen/go/astria/primitives/protocolbuffers/go/astria/primitive/v1"
 	"buf.build/gen/go/astria/sequencerblock-apis/grpc/go/astria/sequencerblock/optimistic/v1alpha1/optimisticv1alpha1grpc"
-	"buf.build/gen/go/astria/sequencerblock-apis/grpc/go/astria/sequencerblock/v1/sequencerblockv1grpc"
 	optimisticv1alpha1 "buf.build/gen/go/astria/sequencerblock-apis/protocolbuffers/go/astria/sequencerblock/optimistic/v1alpha1"
-	sequencerblockv1 "buf.build/gen/go/astria/sequencerblock-apis/protocolbuffers/go/astria/sequencerblock/v1"
 	"context"
 	"crypto/sha256"
 	"google.golang.org/grpc"
@@ -43,17 +41,6 @@ type OptimisticStream struct {
 func (o *OptimisticStreamConnectionInfo) GetOptimisticStream() (*OptimisticStream, error) {
 	// create stream
 	client := optimisticv1alpha1grpc.NewOptimisticBlockServiceClient(o.GetSequencerClient().GetConnection())
-
-	seqClient := sequencerblockv1grpc.NewSequencerServiceClient(o.GetSequencerClient().GetConnection())
-
-	slog.Info("querying sequencer block", "sequencer_url", o.GetSequencerClient().GetConnection().Target())
-	_, err := seqClient.GetSequencerBlock(context.Background(), &sequencerblockv1.GetSequencerBlockRequest{
-		Height: 3000000,
-	})
-	if err != nil {
-		slog.Error("cannot query sequencer block", "err", err)
-		return nil, err
-	}
 
 	optimisticBlockStreamReq := &optimisticv1alpha1.GetOptimisticBlockStreamRequest{
 		RollupId: o.GetRollupId(),
