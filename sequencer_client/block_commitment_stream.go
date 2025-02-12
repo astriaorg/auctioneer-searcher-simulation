@@ -42,7 +42,6 @@ func (b *BlockCommitmentStreamConnectionInfo) GetBlockCommitmentStream() (*Block
 	}, nil
 }
 
-// TODO - abstract away only the methods
 func (b *BlockCommitmentStream) GetStreamClient() grpc.ServerStreamingClient[optimisticv1alpha1.GetBlockCommitmentStreamResponse] {
 	return *b.streamingClient
 }
