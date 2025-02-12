@@ -19,18 +19,6 @@ func NewSequencerClient(sequencerUrl string) (*SequencerClient, error) {
 		return nil, err
 	}
 
-	//var transportCreds credentials.TransportCredentials
-	//switch parsedSequencerUrl.Scheme {
-	//case "http":
-	//	transportCreds = insecure.NewCredentials()
-	//case "https":
-	//	transportCreds = credentials.NewTLS(&tls.Config{
-	//		InsecureSkipVerify: false,
-	//	})
-	//default:
-	//	transportCreds = insecure.NewCredentials()
-	//}
-
 	transportCreds := credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
 	})
