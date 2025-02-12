@@ -1,9 +1,7 @@
 package sequencer_client
 
 import (
-	"crypto/tls"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"log/slog"
 	"net/url"
@@ -20,21 +18,19 @@ func NewSequencerClient(sequencerUrl string) (*SequencerClient, error) {
 		return nil, err
 	}
 
-	var transportCreds credentials.TransportCredentials
-	switch parsedSequencerUrl.Scheme {
-	case "http":
-		transportCreds = insecure.NewCredentials()
-	case "https":
-		transportCreds = credentials.NewTLS(&tls.Config{
-			InsecureSkipVerify: false,
-		})
-	default:
-		transportCreds = credentials.NewTLS(&tls.Config{
-			InsecureSkipVerify: false,
-		})
-	}
+	//var transportCreds credentials.TransportCredentials
+	//switch parsedSequencerUrl.Scheme {
+	//case "http":
+	//	transportCreds = insecure.NewCredentials()
+	//case "https":
+	//	transportCreds = credentials.NewTLS(&tls.Config{
+	//		InsecureSkipVerify: false,
+	//	})
+	//default:
+	//	transportCreds = insecure.NewCredentials()
+	//}
 
-	conn, err := grpc.NewClient(parsedSequencerUrl.String(), grpc.WithTransportCredentials(transportCreds))
+	conn, err := grpc.NewClient(parsedSequencerUrl.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		slog.Error("can not connect with server", "err", err)
 		return nil, err
