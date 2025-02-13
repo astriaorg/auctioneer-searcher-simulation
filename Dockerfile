@@ -12,13 +12,13 @@ RUN go mod download
 COPY . .
 
 # Build the Go application with CGO disabled for a static binary.
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o myapp .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o auctioneer-smoke-test .
 
 # Final stage: use a minimal base image.
 FROM scratch
 
 # Copy the built binary from the builder stage.
-COPY --from=builder /app/myapp /myapp
+COPY --from=builder /app/auctioneer-smoke-test /auctioneer-smoke-test
 
 # Command to run your Go binary.
-ENTRYPOINT ["/myapp"]
+ENTRYPOINT ["/auctioneer-smoke-test"]

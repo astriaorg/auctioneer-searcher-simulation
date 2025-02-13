@@ -19,31 +19,30 @@ type Config struct {
 }
 
 func readConfigFromCmdLine() (Config, error) {
-	// Ensure a subcommand is provided.
-	if len(os.Args) < 2 {
-		fmt.Println("expected smoke-test subcommand")
-		os.Exit(1)
+	// TODO - implement flag.Value interface for urls to validate them.
+	sequencerUrl := flag.String("sequencer-url", "grpc.sequencer.localdev.me", "The grpc url of the sequencer node")
+	ethRpcUrl := flag.String("eth-rpc-url", "http://executor.astria.localdev.me", "The rpc url of the ethereum node")
+	searcherPrivateKey := flag.String("searcher-private-key", "", "The searcher eth private key")
+	rollupName := flag.String("rollup-name", "", "The name of the rollup")
+	addressToSend := flag.String("address-to-send", "0x507056D8174aC4fb40Ec51578d18F853dFe000B2", "The address to send the funds to in hex")
+	amountToSend := flag.String("amount-to-send", "100", "The amount to send in gwei")
+
+	flag.Parse()
+
+	provided := make(map[string]bool)
+	flag.Visit(func(f *flag.Flag) {
+		provided[f.Name] = true
+	})
+
+	missing := false
+	// Check required flags.
+	if !provided["searcher-private-key"] {
+		fmt.Fprintln(os.Stderr, "Missing required flag: -searcher-private-key")
+		missing = true
 	}
 
-	if os.Args[1] != "smoke-test" {
-		fmt.Println("expected 'smoke-test' subcommand")
-		os.Exit(1)
-	}
-
-	// Create a new FlagSet for the 'calc' subcommand.
-	smokeTestCmd := flag.NewFlagSet("smoke-test", flag.ExitOnError)
-	// Define flags for operation and operands.
-	// TODO - implement flag.Value interface for urls
-	sequencerUrl := smokeTestCmd.String("sequencer-url", "", "The grpc url of the sequencer node")
-	ethRpcUrl := smokeTestCmd.String("eth-rpc-url", "", "The rpc url of the ethereum node")
-	searcherPrivateKey := smokeTestCmd.String("searcher-private-key", "", "The searcher eth private key")
-	rollupName := smokeTestCmd.String("rollup-name", "", "The name of the rollup")
-	addressToSend := smokeTestCmd.String("address-to-send", "", "The address to send the funds to in hex")
-	amountToSend := smokeTestCmd.String("amount-to-send", "", "The amount to send in gwei")
-
-	err := smokeTestCmd.Parse(os.Args[2:])
-	if err != nil {
-		fmt.Println("error parsing flags")
+	if missing {
+		flag.Usage()
 		os.Exit(1)
 	}
 
