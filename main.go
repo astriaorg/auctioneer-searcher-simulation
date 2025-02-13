@@ -39,18 +39,18 @@ func main() {
 	blockCommitmentStreamInfo := sequencer_client.NewBlockCommitmentStreamConnectionInfo(sequencerClient)
 	blockCommitmentStream, err := blockCommitmentStreamInfo.GetBlockCommitmentStream()
 	if err != nil {
-		fmt.Printf("can not create block commitment stream: err: %s", err.Error())
+		fmt.Printf("can not create block commitment stream: err: %s\n", err.Error())
 		return
 	}
 
 	client, err := ethclient.Dial(config.ethRpcUrl)
 	if err != nil {
-		fmt.Printf("can not connect to eth client: err: %s", err.Error())
+		fmt.Printf("can not connect to eth client: err: %s\n", err.Error())
 		return
 	}
 	chainId, err := client.ChainID(context.Background())
 	if err != nil {
-		fmt.Printf("can not get chain id: err: %s", err.Error())
+		fmt.Printf("can not get chain id: err: %s\n", err.Error())
 		return
 	}
 
@@ -58,7 +58,7 @@ func main() {
 
 	searcher, err := NewSearcher(config.searcherPrivateKey, chainId, client)
 	if err != nil {
-		fmt.Printf("can not create searcher: err: %s", err.Error())
+		fmt.Printf("can not create searcher: err: %s\n", err.Error())
 		return
 	}
 
@@ -122,7 +122,7 @@ func main() {
 
 		go searcher.SearcherTask(&searcherTasksWaitGroup, txMiningInfoRes, config.addressToSend, config.amountToSend)
 	case <-done:
-		fmt.Printf("exiting due to an unexpected error!")
+		fmt.Printf("exiting due to an unexpected error!\n")
 	}
 
 	txMiningInfo := <-txMiningInfoRes
@@ -130,7 +130,7 @@ func main() {
 		fmt.Printf("error while mining tx: %s\n", txMiningInfo.err.Error())
 		os.Exit(1)
 	} else {
-		fmt.Printf("Successfully mined tx %s at block: %d\n", txMiningInfo.txHash.String(), txMiningInfo.blockNumber)
+		fmt.Printf("Successfully included tx %s at block: %d\n", txMiningInfo.txHash.String(), txMiningInfo.blockNumber)
 	}
 
 	searcherTasksWaitGroup.Wait()
