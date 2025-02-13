@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"log/slog"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -40,7 +39,7 @@ type Searcher struct {
 func NewSearcher(privateKeyHex string, chainId *big.Int, ethClient *ethclient.Client) (*Searcher, error) {
 	privateKey, err := crypto.HexToECDSA(privateKeyHex)
 	if err != nil {
-		slog.Error("can not create private key", "err", err)
+		fmt.Printf("can not create private key: err: %v\n", err.Error())
 		return nil, err
 	}
 
@@ -59,7 +58,7 @@ func NewSearcher(privateKeyHex string, chainId *big.Int, ethClient *ethclient.Cl
 func (s *Searcher) FetchLatestNonce() (uint64, error) {
 	nonce, err := s.client.PendingNonceAt(context.Background(), crypto.PubkeyToAddress(s.privateKey.PublicKey))
 	if err != nil {
-		slog.Error("can not fetch latest nonce", "err", err)
+		fmt.Printf("can not fetch latest nonce: %v\n", err.Error())
 		return 0, err
 	}
 
@@ -84,14 +83,14 @@ func (s *Searcher) SearcherTask(wg *sync.WaitGroup, txMiningInfoResult chan TxMi
 			nonceCh <- nonceResult{
 				err: err,
 			}
-			slog.Error("can not fetch latest nonce", "err", err)
+			fmt.Printf("can not fetch latest nonce: %s\n", err.Error())
 			return
 		}
 
 		nonceCh <- nonceResult{nonce: nonce, err: err}
 	}()
 
-	// add a sleep to give time for auctioneer to receive the executed optimistic block
+	// give time for auctioneer to receive the executed optimistic block
 	time.Sleep(50 * time.Millisecond)
 
 	// wait for the latest nonce before proceeding to submitting the tx
@@ -121,18 +120,18 @@ func (s *Searcher) SearcherTask(wg *sync.WaitGroup, txMiningInfoResult chan TxMi
 		txMiningInfoResult <- TxMiningInfo{
 			err: err,
 		}
-		slog.Error("can not sign the tx", "err", err)
+		fmt.Printf("can not sign the tx: %s\n", err.Error())
 		return
 	}
 
-	fmt.Printf("Submitted tx hash: %s\n", signedTx.Hash().Hex())
+	fmt.Printf("Submitting tx hash: %s with bid: %d\n", signedTx.Hash().Hex(), signedTx.GasTipCap())
 
 	err = s.client.SendTransaction(context.Background(), signedTx)
 	if err != nil {
 		txMiningInfoResult <- TxMiningInfo{
 			err: err,
 		}
-		slog.Error("can not send the tx", "err", err)
+		fmt.Printf("can not send the tx: err: %s\n", err.Error())
 		return
 	}
 
@@ -145,7 +144,7 @@ func (s *Searcher) SearcherTask(wg *sync.WaitGroup, txMiningInfoResult chan TxMi
 		txMiningInfoResult <- TxMiningInfo{
 			err: err,
 		}
-		slog.Error("can not wait for the tx to be mined", "err", err)
+		fmt.Printf("can not wait for the tx to be mined: %s\n", err.Error())
 		return
 	}
 	if receipt != nil {

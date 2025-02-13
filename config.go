@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
-	"log/slog"
 	"math/big"
 	"os"
 )
@@ -58,13 +57,4 @@ func readConfigFromCmdLine() (Config, error) {
 		addressToSend:      addressToSendConv,
 		amountToSend:       amountToSendConv,
 	}, nil
-}
-
-func (c *Config) PrintConfig() {
-	slog.Info("Sequencer url is:", "sequencer_url", c.sequencerUrl)
-	slog.Info("Searcher private key is:", "searcher_private_key", c.searcherPrivateKey)
-	slog.Info("Eth rpc url is:", "eth_rpc_url", c.ethRpcUrl)
-	slog.Info("Rollup name is:", "rollup_name", c.rollupName)
-	slog.Info("Address to send is:", "address_to_send", c.addressToSend)
-	slog.Info("Amount to send is:", "amount_to_send", c.amountToSend)
 }

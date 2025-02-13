@@ -2,9 +2,9 @@ package sequencer_client
 
 import (
 	"crypto/tls"
+	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"log/slog"
 	"net/url"
 )
 
@@ -15,7 +15,7 @@ type SequencerClient struct {
 func NewSequencerClient(sequencerUrl string) (*SequencerClient, error) {
 	parsedSequencerUrl, err := url.Parse(sequencerUrl)
 	if err != nil {
-		slog.Error("can not parse url", "err", err)
+		fmt.Printf("can not parse url: err: %s\n", err.Error())
 		return nil, err
 	}
 
@@ -25,7 +25,7 @@ func NewSequencerClient(sequencerUrl string) (*SequencerClient, error) {
 
 	conn, err := grpc.NewClient(parsedSequencerUrl.String(), grpc.WithTransportCredentials(transportCreds))
 	if err != nil {
-		slog.Error("can not connect with server", "err", err)
+		fmt.Printf("can not connect with server: err: %s\n", err.Error())
 		return nil, err
 	}
 	return &SequencerClient{

@@ -6,8 +6,8 @@ import (
 	optimisticv1alpha1 "buf.build/gen/go/astria/sequencerblock-apis/protocolbuffers/go/astria/sequencerblock/optimistic/v1alpha1"
 	"context"
 	"crypto/sha256"
+	"fmt"
 	"google.golang.org/grpc"
-	"log/slog"
 )
 
 type OptimisticStreamConnectionInfo struct {
@@ -47,7 +47,7 @@ func (o *OptimisticStreamConnectionInfo) GetOptimisticStream() (*OptimisticStrea
 	}
 	optimisticBlockStream, err := client.GetOptimisticBlockStream(context.Background(), optimisticBlockStreamReq)
 	if err != nil {
-		slog.Error("open stream error", "err", err)
+		fmt.Printf("open stream error: err: %s\n", err.Error())
 		return nil, err
 	}
 

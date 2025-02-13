@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"io"
-	"log/slog"
 	"os"
 	"sync"
 )
@@ -76,7 +75,7 @@ func main() {
 				return
 			}
 			if err != nil {
-				slog.Error("can not receive", "err", err)
+				fmt.Printf("can not receive: %s\n", err.Error())
 			}
 			block := resp.GetBlock()
 
@@ -97,7 +96,7 @@ func main() {
 				return
 			}
 			if err != nil {
-				slog.Error("can not receive", "err", err)
+				fmt.Printf("can not receive block commitment: err: %v\n", err.Error())
 			}
 			block := resp.GetCommitment()
 

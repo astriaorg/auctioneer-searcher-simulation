@@ -7,9 +7,7 @@ require (
 	buf.build/gen/go/astria/sequencerblock-apis/grpc/go v1.5.1-00000000000000-e54e1c9ad405.2
 	buf.build/gen/go/astria/sequencerblock-apis/protocolbuffers/go v1.36.3-00000000000000-e54e1c9ad405.1
 	github.com/ethereum/go-ethereum v1.14.12
-	github.com/google/uuid v1.6.0
 	github.com/holiman/uint256 v1.3.1
-	github.com/joho/godotenv v1.5.1
 	google.golang.org/grpc v1.64.1
 )
 
@@ -27,8 +25,8 @@ require (
 	github.com/ethereum/go-verkle v0.1.1-0.20240829091221-dffa7562dbe9 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
-	github.com/lmittmann/tint v1.0.6 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
 	github.com/supranational/blst v0.3.13 // indirect
