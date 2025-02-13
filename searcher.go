@@ -91,6 +91,9 @@ func (s *Searcher) SearcherTask(wg *sync.WaitGroup, txMiningInfoResult chan TxMi
 		nonceCh <- nonceResult{nonce: nonce, err: err}
 	}()
 
+	// add a sleep to give time for auctioneer to receive the executed optimistic block
+	time.Sleep(50 * time.Millisecond)
+
 	// wait for the latest nonce before proceeding to submitting the tx
 	nonce := <-nonceCh
 	if nonce.err != nil {

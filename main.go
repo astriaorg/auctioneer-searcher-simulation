@@ -128,6 +128,7 @@ func main() {
 
 	txMiningInfo := <-txMiningInfoRes
 	if txMiningInfo.err != nil {
+		fmt.Printf("error while mining tx: %s\n", txMiningInfo.err.Error())
 		os.Exit(1)
 	} else {
 		fmt.Printf("Successfully mined tx %s at block: %d\n", txMiningInfo.txHash.String(), txMiningInfo.blockNumber)
