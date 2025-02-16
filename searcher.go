@@ -91,7 +91,7 @@ func (s *Searcher) SearcherTask(wg *sync.WaitGroup, txMiningInfoResult chan TxMi
 	}()
 
 	// give time for auctioneer to receive the executed optimistic block
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(1 * time.Millisecond)
 
 	// wait for the latest nonce before proceeding to submitting the tx
 	nonce := <-nonceCh
@@ -124,14 +124,13 @@ func (s *Searcher) SearcherTask(wg *sync.WaitGroup, txMiningInfoResult chan TxMi
 		return
 	}
 
-	fmt.Printf("Submitting tx hash: %s with bid: %d\n to the auctioneer flame node", signedTx.Hash().Hex(), signedTx.GasTipCap())
+	fmt.Printf("Submitting tx hash: %s with bid: %d to the auctioneer flame node\n", signedTx.Hash().Hex(), signedTx.GasTipCap())
 
 	err = s.client.SendTransaction(context.Background(), signedTx)
 	if err != nil {
 		txMiningInfoResult <- TxMiningInfo{
 			err: err,
 		}
-		fmt.Printf("can not send the tx: err: %s\n", err.Error())
 		return
 	}
 

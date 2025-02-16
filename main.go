@@ -129,6 +129,7 @@ func main() {
 	if txMiningInfo.err != nil {
 		fmt.Printf("error while mining tx: %s\n", txMiningInfo.err.Error())
 		os.Exit(1)
+		return
 	} else {
 		fmt.Printf("Successfully included tx %s at block: %d\n", txMiningInfo.txHash.String(), txMiningInfo.blockNumber)
 	}
