@@ -97,13 +97,13 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, latenc
 		wg.Done()
 	}()
 
-	//validateBlockCommitment := func(blockCommitment *optimisticBlockData) error {
-	//	if blockCommitment.blockNumber != optimisticBlockInfo.getBlockNumber() {
-	//		// we are not interested in this block commitment
-	//		return fmt.Errorf("block commitment number %v does not match with the optimistic block number %v", blockCommitment.blockNumber, optimisticBlockInfo.getBlockNumber())
-	//	}
-	//	return nil
-	//}
+	validateBlockCommitment := func(blockCommitment *optimisticBlockData) error {
+		if blockCommitment.blockNumber != optimisticBlockInfo.getBlockNumber() {
+			// we are not interested in this block commitment
+			return fmt.Errorf("block commitment number %v does not match with the optimistic block number %v", blockCommitment.blockNumber, optimisticBlockInfo.getBlockNumber())
+		}
+		return nil
+	}
 
 	timer := time.NewTimer(sleepDelay)
 	nonceCh := make(chan uint64)
@@ -119,29 +119,28 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, latenc
 	select {
 	case <-timer.C:
 		slog.Info("searching completed on time! Now proceeding to submit tx to auctioneer")
-		// we finished the work on time
-		// exit and submit tx to auctioneer
-		//case blockCommitment := <-blockCommitmentCh:
-		//	slog.Info("block commitment received! Stopping searching activity to submit!", "block_number", blockCommitment.blockNumber)
-		//	// now we sleep only for latency margin
-		//	// and submit tx to auctioneer
-		//
-		//	// close the block commitment ch since we have finished reading from it
-		//	close(blockCommitmentCh)
-		//
-		//	err := validateBlockCommitment(&blockCommitment)
-		//	if err != nil {
-		//		slog.Error("failed block commitment validation", "err", err)
-		//		searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, latencyMargin, err)
-		//		return
-		//	}
-		//
-		//	blockCommitmentReceived = true
+	// we finished the work on time
+	// exit and submit tx to auctioneer
+	case blockCommitment := <-blockCommitmentCh:
+		slog.Info("block commitment received! Stopping searching activity to submit!", "block_number", blockCommitment.blockNumber)
+		// now we sleep only for latency margin
+		// and submit tx to auctioneer
+
+		// close the block commitment ch since we have finished reading from it
+		close(blockCommitmentCh)
+
+		err := validateBlockCommitment(&blockCommitment)
+		if err != nil {
+			slog.Error("failed block commitment validation", "err", err)
+			searcherResultChan <- NewSearcherResult(uuid, nil, sleepDelay, latencyMargin, err)
+			return
+		}
+
+		blockCommitmentReceived = true
 	}
 
 	if blockCommitmentReceived {
 		// we still can sleep for latency margin amount
-		// TODO - make this an env variable
 		slog.Info("Sleeping for latency margin time", "latency_margin", latencyMargin.String())
 		time.Sleep(latencyMargin)
 	}
