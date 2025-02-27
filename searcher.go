@@ -105,6 +105,8 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, latenc
 		return nil
 	}
 
+	// we use sleep to model some searching activity. The searching activity can involve executing the optimistic block
+	// in a geth node to build state to simulate on, searching prices on Dex'es, Cex'es etc.
 	timer := time.NewTimer(sleepDelay)
 	nonceCh := make(chan uint64)
 	go func() {
@@ -153,6 +155,7 @@ func (s *Searcher) SearcherTask(uuid uuid.UUID, sleepDelay time.Duration, latenc
 		s.searcherNonce.Store(&nonce)
 	}
 
+	// we just send a simple transfer tx
 	toAddress := common.HexToAddress("0x507056D8174aC4fb40Ec51578d18F853dFe000B2")
 	currentNonce := *s.searcherNonce.Load()
 
